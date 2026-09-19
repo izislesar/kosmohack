@@ -32,15 +32,24 @@ python src/models/af_thresholds.py --config configs/af.yaml  # thresholds only, 
 ## Weights
 `weights/af.pt` (AF Unet) · `weights/af_thresh.json` (thr+gate) · `weights/bs.pt` (BS fallback winner, ep91).
 
-## Service (Variant A)
+## Service (Variant A, localhost)
 ```
 SUBMISSION_CSV=submission.csv AOI_GEOJSON=data/fire-aoi/fire_monitoring_aoi.geojson \
   python3 -m uvicorn service.app:app --host 0.0.0.0 --port 8000
+# фронт: открыть index.html в браузере; js/config.js -> API_BASE http://localhost:8000, USE_MOCK false
 ```
-- `GET /v1/fires?bbox=&date_from=&date_to=&format=` · `GET /v1/burned-areas?...&severity=1,2,3&format=`
-- `GET /v1/analytics?...` → `{total_ha, sev1/2/3_ha}` · `POST /v1/{fires,burned-areas,analytics}/query {polygon}`
-- Formats: geojson (default) | json | shp (zip). CORS: localhost + spcase.ru + api.spcase.ru.
+- `GET /v1/health` → `{status: ok}`
+- `GET /v1/fires?bbox=&date_from=&date_to=&format=` (точки)
+- `GET /v1/burned-areas?...&severity=1,2,3&format=` → properties `{id, severity, severity_label, area_ha, date_pre, date_post}`
+- `GET /v1/analytics?...` → `{fire_points, total_burned_ha, by_severity_ha{1,2,3}, by_severity_pct, bbox, date_from, date_to, projection_for_area}`
+- `POST /v1/{fires,burned-areas,analytics}/query {polygon, date_from, date_to, ...}`
+- Formats: geojson (default) | json | shp (zip). CORS: только `http://localhost:3000`, `http://localhost:5173`, `http://localhost:8000`.
+- `SUBMISSION_CSV` из env (default `submission.csv`). БД нет — бэк файловый.
+- E2E: `bash docs/e2e_curl.sh` (health, точки, полигоны, справка без нулей, severity-фильтр, polygon-POST, CORS allow/deny, config).
 - Demo mapping: chips are de-identified (case §5.5); service tiles inference outputs across the AOI bbox in index order with deterministic demo dates — geometry math is real, placement is documented demo, not recovered georeferencing.
+
+## Submission — FINAL
+`submission.csv` (4.1M, 447 строк, md5 `97b86c6783c14e168353b93741f1f224`): пары chip/class совпадают с шаблоном, RLE валиден, NaN 0, BS-пересечений 0. Фриз Score 0.654. Переобучение запрещено.
 
 ## Layout
 `configs/` · `src/models/` (train, datasets, postproc) · `inference.py` · `service/app.py` ·

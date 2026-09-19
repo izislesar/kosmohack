@@ -1,9 +1,8 @@
 const APP_CONFIG = {
 
-    API_BASE: "https://api.spcase.ru",
+    API_BASE: "http://localhost:8000",
 
-    /*Когда подключаем реальный backend: USE_MOCK: false*/
-    USE_MOCK: true,
+    USE_MOCK: false,
 
     REFRESH_SECONDS: 30,
     /*Тоже подумай кстати че с этим делать*/

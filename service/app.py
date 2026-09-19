@@ -9,12 +9,14 @@ placement is a documented demo grid, not recovered georeferencing.
 
 Endpoints:
   GET  /v1/fires?bbox=lon_min,lat_min,lon_max,lat_max&date_from&date_to&format=
-  GET  /v1/burned-areas?...&severity=1,2,3&format=
-  GET  /v1/analytics?...  -> {total_ha, sev1/2/3_ha, n_fires}
+  GET  /v1/burned-areas?...&severity=1,2,3&format= -> properties {id, severity, severity_label, area_ha, date_pre, date_post}
+  GET  /v1/analytics?...  -> {fire_points, total_burned_ha, by_severity_ha{1,2,3}, by_severity_pct, bbox, date_from, date_to, projection_for_area}
+  GET  /v1/health -> {status: ok}
   POST /v1/{fires,burned-areas,analytics}/query {polygon: GeoJSON, date_from, date_to, ...}
 Formats: geojson (default) | json (analytics summary / raw) | shp (minimal ESRI polygon zip)
-CORS: localhost:* + spcase.ru + api.spcase.ru
-Run: uvicorn service.app:app --host 0.0.0.0 --port 8000 (from repo root)
+CORS: http://localhost:3000, http://localhost:5173, http://localhost:8000 only
+Env: SUBMISSION_CSV (default submission.csv), AOI_GEOJSON
+Run: SUBMISSION_CSV=submission.csv uvicorn service.app:app --host 0.0.0.0 --port 8000 (from repo root)
 """
 import csv
 import io
@@ -25,9 +27,11 @@ import zipfile
 
 import numpy as np
 
-SUBMISSION = os.environ.get("SUBMISSION_CSV", "/tmp/sub1.csv")
+SUBMISSION = os.environ.get("SUBMISSION_CSV", "submission.csv")
 AOI_GEOJSON = os.environ.get("AOI_GEOJSON", "data/fire-aoi/fire_monitoring_aoi.geojson")
 GSD = {"AF_te": 375.0, "BS_te": 20.0}
+SEVERITY_LABELS = {1: "Weak", 2: "Moderate", 3: "Strong"}
+PROJECTION_FOR_AREA = "EPSG:6933"
 
 _cache = {}
 
@@ -70,6 +74,7 @@ def load_index():
     dx = (aoi[2] - aoi[0]) / cols
     dy = (aoi[3] - aoi[1]) / cols
     chips = sorted({r["chip_id"] for r in rows})
+    fid = 0
     for i, chip in enumerate(chips):
         cx, cy = aoi[0] + (i % cols) * dx, aoi[3] - (i // cols + 1) * dy
         prefix = chip[:5]
@@ -100,7 +105,8 @@ def load_index():
                 poly = [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]]
                 area_ha = float(bw * bh * gsd * gsd / 1e4)
                 lon, lat = cx + (ccx / w) * dx, cy + (ccy / h) * dy
-                f = {"chip_id": chip, "class_id": k, "date": date,
+                fid += 1
+                f = {"fid": f"{chip}:{k}:{fid}", "chip_id": chip, "class_id": k, "date": date,
                      "lon": lon, "lat": lat, "poly": poly, "area_ha": area_ha,
                      "bbox": [x0, y0, x1, y1]}
                 feats.append(f)
@@ -154,11 +160,24 @@ def filter_feats(feats, bbox=None, d0=None, d1=None, poly=None, sev=None):
 
 
 def as_geojson(feats, kind):
-    return {"type": "FeatureCollection", "features": [
-        {"type": "Feature",
-         "geometry": {"type": "Point" if kind == "fires" else "Polygon",
-                      "coordinates": [f["lon"], f["lat"]] if kind == "fires" else f["poly"]},
-         "properties": {k: f[k] for k in ("chip_id", "class_id", "date", "area_ha")}} for f in feats]}
+    out = []
+    for f in feats:
+        if kind == "fires":
+            props = {"id": f.get("fid", f["chip_id"]),
+                     "date": f["date"],
+                     "area_ha": round(f["area_ha"], 2)}
+            geom = {"type": "Point", "coordinates": [f["lon"], f["lat"]]}
+        else:
+            sev = int(f["class_id"])
+            props = {"id": f.get("fid", f["chip_id"]),
+                     "severity": sev,
+                     "severity_label": SEVERITY_LABELS.get(sev, f"Level {sev}"),
+                     "area_ha": round(f["area_ha"], 2),
+                     "date_pre": f["date"],
+                     "date_post": f["date"]}
+            geom = {"type": "Polygon", "coordinates": f["poly"]}
+        out.append({"type": "Feature", "geometry": geom, "properties": props})
+    return {"type": "FeatureCollection", "features": out}
 
 
 def shp_zip(feats, kind):
@@ -215,13 +234,28 @@ def shp_zip(feats, kind):
     return z.read()
 
 
-def analytics_summary(feats):
+def analytics_summary(burns, fires=None, bbox=None, d0=None, d1=None):
     s = {1: 0.0, 2: 0.0, 3: 0.0}
-    for f in feats:
-        s[f["class_id"]] = s.get(f["class_id"], 0.0) + f["area_ha"]
-    return {"total_ha": round(sum(s.values()), 2), "sev1_ha": round(s.get(1, 0), 2),
-            "sev2_ha": round(s.get(2, 0), 2), "sev3_ha": round(s.get(3, 0), 2),
-            "n_features": len(feats)}
+    for f in burns:
+        k = int(f["class_id"])
+        if k in s:
+            s[k] += float(f["area_ha"])
+    total = round(sum(s.values()), 2)
+    ha = {1: round(s[1], 2), 2: round(s[2], 2), 3: round(s[3], 2)}
+    pct = {1: round(s[1] / total * 100, 2) if total > 0 else 0.0,
+           2: round(s[2] / total * 100, 2) if total > 0 else 0.0,
+           3: round(s[3] / total * 100, 2) if total > 0 else 0.0}
+    return {"fire_points": len(fires or []),
+            "total_burned_ha": total,
+            "total_area_ha": total,
+            "by_severity_ha": ha,
+            "by_severity": {str(k): v for k, v in ha.items()},
+            "by_severity_pct": pct,
+            "weak_ha": ha[1], "moderate_ha": ha[2], "strong_ha": ha[3],
+            "bbox": list(bbox) if bbox is not None else None,
+            "date_from": d0 or None,
+            "date_to": d1 or None,
+            "projection_for_area": PROJECTION_FOR_AREA}
 
 
 # ---- FastAPI wiring (import-time safe without fastapi for precompute tests) ----
@@ -231,9 +265,8 @@ try:
 
     app = FastAPI(title="kosmohack fire service (Variant A)")
     app.add_middleware(CORSMiddleware, allow_origins=[
-        "http://localhost:3000", "http://localhost:5173", "http://localhost:8000",
-        "http://localhost", "https://spcase.ru", "https://api.spcase.ru",
-        "https://www.spcase.ru"], allow_methods=["*"], allow_headers=["*"])
+        "http://localhost:3000", "http://localhost:5173", "http://localhost:8000"],
+        allow_methods=["*"], allow_headers=["*"])
 
     def _fmt(feats, kind, fmt):
         if fmt == "shp":
@@ -259,12 +292,18 @@ try:
                          d0=date_from or None, d1=date_to or None, sev=sev)
         return _fmt(f, "burned-areas", format)
 
+    @app.get("/v1/health")
+    def get_health():
+        return {"status": "ok"}
+
     @app.get("/v1/analytics")
     def get_analytics(bbox: str = Query(...), date_from: str = "", date_to: str = ""):
         idx = load_index()
-        f = filter_feats(idx["burns"] + idx["fires"], bbox=parse_bbox(bbox),
-                         d0=date_from or None, d1=date_to or None)
-        return analytics_summary(f)
+        bb = parse_bbox(bbox)
+        d0, d1 = date_from or None, date_to or None
+        b = filter_feats(idx["burns"], bbox=bb, d0=d0, d1=d1)
+        fr = filter_feats(idx["fires"], bbox=bb, d0=d0, d1=d1)
+        return analytics_summary(b, fr, bbox=bb, d0=d0, d1=d1)
 
     @app.post("/v1/{kind}/query")
     def post_query(kind: str, body: dict):
@@ -279,8 +318,9 @@ try:
             f = filter_feats(idx["burns"], d0=d0, d1=d1, poly=poly, sev=sev)
             return as_geojson(f, "burned-areas")
         if kind == "analytics":
-            f = filter_feats(idx["burns"] + idx["fires"], d0=d0, d1=d1, poly=poly)
-            return analytics_summary(f)
+            b = filter_feats(idx["burns"], d0=d0, d1=d1, poly=poly)
+            fr = filter_feats(idx["fires"], d0=d0, d1=d1, poly=poly)
+            return analytics_summary(b, fr, bbox=None, d0=d0, d1=d1)
         return {"error": "unknown kind"}
 except ImportError:
     app = None  # fastapi absent (won't happen on VPS); precompute fns still usable

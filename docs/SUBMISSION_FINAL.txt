@@ -1,0 +1,7 @@
+submission.csv — FINAL
+md5: 97b86c6783c14e168353b93741f1f224
+size: 4.1M, rows: 447 (180 AFx1 + 89 BSx3 + header check: pairs_match True)
+rle_ok: True, nan_rows: 0, bs_overlap_px: 0, total_pred_px: 2706635
+freeze Score: 0.654 (F1_af 0.8434 / IoU_burn 0.5239 / mIoU_sev 0.5430)
+weights: af.pt + af_thresh.json (thr 0.15, WC gate lc50/I4>=310K) + bs.pt (ep91)
+Retraining is FORBIDDEN. Template: docs/sample_submission_1.csv.
