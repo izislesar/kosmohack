@@ -21,6 +21,9 @@ S1-пара, рельеф, тип покрова). Тестовые чипы д�
   победитель); argmax + cloud→0 + burn-gate snap. Ветка Prithvi мертва
   (IoU 0.16 < бейзлайн 0.33).
 - Сиды 19 везде; детерминизм: 2 прогона inference — побайтово идентичны.
+- Абляции retry (все REJECTED, фриз ep91 устоял): H1 aug-from-scratch ep38
+  IoU_burn 0.4896 / mIoU 0.5099 / Score 0.6196 < 0.654; H2 class-weights
+  (1,6,6.5,8)+aug ep48 IoU_burn 0.5072 / mIoU 0.5316 / Score 0.632 < 0.654.
 
 ## 4. Метрика (кейс §7)
 `Score = 0.35·F1_af + 0.35·IoU_burn + 0.30·mIoU_sev` (micro-pool).

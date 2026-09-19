@@ -10,8 +10,8 @@ const APP_CONFIG = {
     DEFAULT_DATE_TO: "2025-07-31",
 
     MAP: {
-        CENTER: [48.0, 46.48],
-        ZOOM: 10,
+        CENTER: [46.0, 40.5],
+        ZOOM: 7,
 
         MIN_ZOOM: 3,
         MAX_ZOOM: 18
