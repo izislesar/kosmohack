@@ -199,15 +199,31 @@ def run_train(cfg, cfg_path, fh):
 
     base = run_baseline(cfg, fh)
 
+    aug_on = bool(tr.get("aug", False))
+    aug_seed = int(cfg.get("seed", 19))
+    cur_ep = [0]
+
     class T(Dataset):
         def __init__(self, c, part):
             self.d = BSChipDataset(c, part)
+            self.is_train = (part == "train")
         def __len__(self):
             return len(self.d)
         def __getitem__(self, i):
             s = self.d[i]
-            return (torch.from_numpy(s["x"]),
-                    torch.from_numpy(s["y"]).long())
+            x, y = s["x"], s["y"]
+            if aug_on and self.is_train:
+                # deterministic per (epoch, idx): rot90 k + hflip, same transform on x/y
+                rng = random.Random(aug_seed + cur_ep[0] * 100003 + i * 917)
+                k = rng.randint(0, 3)
+                if k:
+                    x = np.rot90(x, k, axes=(1, 2)).copy()
+                    y = np.rot90(y, k, axes=(0, 1)).copy()
+                if rng.random() < 0.5:
+                    x = np.flip(x, axis=2).copy()
+                    y = np.flip(y, axis=1).copy()
+            return (torch.from_numpy(np.ascontiguousarray(x)),
+                    torch.from_numpy(np.ascontiguousarray(y)).long())
 
     model = build_model(cfg, fh).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=float(tr["lr"]), weight_decay=float(tr.get("weight_decay", 0.0)))
@@ -228,6 +244,7 @@ def run_train(cfg, cfg_path, fh):
     ckpt_path = tr.get("out_ckpt", "weights/bs.pt")
     os.makedirs(os.path.dirname(ckpt_path) or ".", exist_ok=True)
     for ep in range(int(tr["max_epochs"])):
+        cur_ep[0] = ep
         model.train()
         tot, n = 0.0, 0
         opt.zero_grad(set_to_none=True)

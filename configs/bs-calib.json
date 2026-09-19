@@ -1,0 +1,23 @@
+{
+  "seed": 19,
+  "f1_af": 0.8434,
+  "base": {
+    "burn_scale": 1.0,
+    "cut_scale": 1.0,
+    "snap": true,
+    "remap": false
+  },
+  "best": {
+    "burn_scale": 1.15,
+    "cut_scale": 1.0,
+    "snap": true,
+    "remap": true,
+    "iou_burn": 0.5432,
+    "miou_sev": 0.5614,
+    "score": 0.6537
+  },
+  "morph_min_px": 8,
+  "tta_flips": false,
+  "dry_soil_override": true,
+  "note": "val micro-pool; thresholds scale facts dNBR cuts per group"
+}
