@@ -4,11 +4,16 @@ Pipeline: VIIRS AF Unet → S2 BS Unet → `inference.py` → `submission.csv` �
 Metric: `Score = 0.35*F1_af + 0.35*IoU_burn + 0.30*mIoU_sev` (micro-pool, case §7).
 Current: F1_af 0.8434 · IoU_burn 0.5239 · mIoU_sev 0.5430 → Score ≈ 0.64.
 
-## Env / install
+## Env / install (оргам: запуск с нуля)
 ```
+# Вариант A — CUDA (рекомендуется, ~30 сек инференс):
 pip install torch==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.lock
+# Вариант B — CPU (если драйвер старый и torch не видит GPU, упадёт сам на CPU):
+pip install torch==2.11.0+cpu torchvision==0.26.0+cpu --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.lock
 ```
+Веса лежат в репо: `weights/af.pt` (82M) + `weights/bs.pt` (82M) + `weights/af_thresh.json` — скачивать ничего не надо. `inference.py` сам падает на CPU (`--device cuda` → авто-fallback), на CPU прогон дольше (~10–20 мин) но результат бит-в-бит тот же.
 Seeds: 19 everywhere. Determinism: 2 inference runs → byte-identical (diff 0 ≤ 0.005).
 
 ## Inference (contract, case §8)
