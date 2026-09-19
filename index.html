@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Fire Monitor</title>
+
+    <!--Leaflet-->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        crossorigin=""
+    >
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="./css/style.css"
+    >
+</head>
+
+    <body>
+        <!--Map-->
+        <main id="map"></main>
+
+        <!--Logo-->
+        <div class="floating-logo" id="appLogo">
+            <img
+                src="img/logo.png"
+                alt=""
+                class="logo-image"
+            >
+
+            <div class="logo-text">
+                <strong>FIRE</strong>
+                <small>MONITOR</small>
+            </div>
+        </div>
+
+        <!--Sidebar-->
+        <aside class="left-panel">
+
+            <!--Date-->
+            <section class="glass-window filter-window">
+
+                <div class="window-header">
+                    <div>
+                        <span class="window-kicker">01</span>
+                        <h2>Date Range</h2>
+                    </div>
+                </div>
+
+                <div class="date-fields">
+
+                    <label class="field">
+                        <span>FROM</span>
+                        <input
+                            type="text"
+                            id="dateFrom"
+                            readonly
+                            autocomplete="off"
+                            data-value="2025-07-01"
+                            value="01.07.2025"
+                            data-datepicker="from"
+                        >
+                    </label>
+
+                    <label class="field">
+                        <span>TO</span>
+                        <input
+                            type="text"
+                            id="dateTo"
+                            readonly
+                            autocomplete="off"
+                            data-value="2025-07-31"
+                            value="31.07.2025"
+                            data-datepicker="to"
+                        >
+                    </label>
+                </div>
+            </section>
+
+            <!--Ter-->
+            <section class="glass-window filter-window">
+                <div class="window-header">
+                    <div>
+                        <span class="window-kicker">02</span>
+                        <h2>Territory</h2>
+                    </div>
+                </div>
+
+                <div class="territory-options">
+                    <label class="radio-option">
+                        <input
+                            type="radio"
+                            name="territory"
+                            value="full"
+                            id="territoryFull"
+                            checked
+                        >
+
+                        <span class="radio-custom"></span>
+                        <span class="radio-content">
+                            <strong>Full Map</strong>
+                            <small>Current viewport</small>
+                        </span>
+                    </label>
+
+                    <label class="radio-option">
+                        <input
+                            type="radio"
+                            name="territory"
+                            value="rectangle"
+                            id="territoryRectangle"
+                        >
+
+                        <span class="radio-custom"></span>
+                        <span class="radio-content">
+                            <strong>Rectangle</strong>
+                            <small>Draw bounding area</small>
+                        </span>
+                    </label>
+
+                    <label class="radio-option">
+                        <input
+                            type="radio"
+                            name="territory"
+                            value="polygon"
+                            id="territoryPolygon"
+                        >
+
+                        <span class="radio-custom"></span>
+                        <span class="radio-content">
+                            <strong>Polygon</strong>
+                            <small>Draw custom territory</small>
+                        </span>
+                    </label>
+                </div>
+            </section>
+
+            <!--Layers-->
+            <section class="glass-window filter-window">
+
+                <div class="window-header">
+                    <div>
+                        <span class="window-kicker">03</span>
+                        <h2>Map Layers</h2>
+                    </div>
+                </div>
+
+                <div class="layer-options">
+                    <label class="switch-row">
+                        <span class="switch-label">
+                            <span class="layer-dot fire-dot"></span>
+
+                            <span>
+                                <strong>Active Fires</strong>
+                                <small>Thermal detections</small>
+                            </span>
+                        </span>
+
+                        <input
+                            type="checkbox"
+                            id="firesToggle"
+                            checked
+                        >
+                        <span class="switch"></span>
+                    </label>
+
+                    <label class="switch-row">
+                        <span class="switch-label">
+                            <span class="layer-dot burn-dot"></span>
+
+                            <span>
+                                <strong>Burned Areas</strong>
+                                <small>Damage classification</small>
+                            </span>
+                        </span>
+
+                        <input
+                            type="checkbox"
+                            id="burnedToggle"
+                            checked
+                        >
+
+                        <span class="switch"></span>
+                    </label>
+                </div>
+            </section>
+
+            <!--Severity-->
+            <section class="glass-window filter-window">
+                <div class="window-header">
+                    <div>
+                        <span class="window-kicker">04</span>
+                        <h2>Severity</h2>
+                    </div>
+                </div>
+
+                <div class="severity-options">
+                    <label class="severity-row">
+                        <input
+                            type="checkbox"
+                            class="severity-checkbox"
+                            value="1"
+                            checked
+                        >
+
+                        <span class="severity-indicator severity-1"></span>
+                        <span class="severity-text">
+                            <strong>Weak</strong>
+                            <small>Level 1</small>
+                        </span>
+                    </label>
+
+                    <label class="severity-row">
+                        <input
+                            type="checkbox"
+                            class="severity-checkbox"
+                            value="2"
+                            checked
+                        >
+
+                        <span class="severity-indicator severity-2"></span>
+                        <span class="severity-text">
+                            <strong>Moderate</strong>
+                            <small>Level 2</small>
+                        </span>
+                    </label>
+
+                    <label class="severity-row">
+                        <input
+                            type="checkbox"
+                            class="severity-checkbox"
+                            value="3"
+                            checked
+                        >
+
+                        <span class="severity-indicator severity-3"></span>
+                        <span class="severity-text">
+                            <strong>Strong</strong>
+                            <small>Level 3</small>
+                        </span>
+                    </label>
+                </div>
+            </section>
+
+            <button
+                class="apply-button"
+                id="applyFilters"
+                type="button"
+            >
+                <span>Apply Filters</span>
+                <span class="button-arrow">→</span>
+            </button>
+        </aside>
+
+        <!--Sys status-->
+        <aside class="right-panel">
+            <section class="glass-window status-window">
+                <div class="window-header">
+                    <div>
+                        <span class="window-kicker">SYSTEM</span>
+                        <h2>System Status</h2>
+                    </div>
+
+                    <span
+                        class="status-indicator online"
+                        id="systemStatusIndicator"
+                    ></span>
+                </div>
+
+                <div class="status-content">
+                    <div class="status-line">
+                        <span class="status-label">
+                            API
+                        </span>
+                        <span
+                            class="status-value"
+                            id="apiStatus"
+                        >
+                            CONNECTING
+                        </span>
+                    </div>
+
+                    <div class="status-line">
+                        <span class="status-label">
+                            SATELLITE
+                        </span>
+                        <span class="status-value">
+                            ONLINE
+                        </span>
+                    </div>
+
+                    <div class="status-line">
+                        <span class="status-label">
+                            LAST UPDATE
+                        </span>
+                        <span
+                            class="status-value"
+                            id="lastUpdate"
+                        >
+                            —
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <!--F detections-->
+            <section class="glass-window detections-window">
+                <div class="window-header">
+                    <div>
+                        <span class="window-kicker">LIVE DATA</span>
+                        <h2>Active Fire Detections</h2>
+                    </div>
+                    <span
+                        class="live-badge"
+                        id="liveBadge"
+                    >
+                        LIVE
+                    </span>
+                </div>
+
+                <div class="detections-main">
+                    <div
+                        class="detections-number"
+                        id="fireCount"
+                    >
+                        0
+                    </div>
+                    <div class="detections-label">
+                        detected hotspots
+                    </div>
+                </div>
+
+                <div class="detections-meta">
+                    <div>
+                        <span>LAST SCAN</span>
+                        <strong id="lastScan">—</strong>
+                    </div>
+                    <div>
+                        <span>SOURCE</span>
+                        <strong id="dataSource">—</strong>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <div class="custom-zoom">
+
+            <button
+                id="zoomIn"
+                type="button"
+                aria-label="Zoom in"
+            >
+                +
+            </button>
+
+            <button
+                id="zoomOut"
+                type="button"
+                aria-label="Zoom out"
+            >
+                −
+            </button>
+        </div>
+
+        <!--Stat-->
+        <section class="statistics-panel">
+            <div class="stat-card">
+                <span class="stat-kicker">
+                    THERMAL
+                </span>
+                <strong
+                    class="stat-value"
+                    id="statFirePoints"
+                >
+                    0
+                </strong>
+                <span class="stat-label">
+                    Fire Points
+                </span>
+            </div>
+
+            <!--Total-->
+            <div class="stat-card">
+                <span class="stat-kicker">
+                    TOTAL AREA
+                </span>
+                <strong
+                    class="stat-value"
+                    id="statTotalArea"
+                >
+                    0
+                </strong>
+                <span class="stat-label">
+                    Burned Area / ha
+                </span>
+            </div>
+
+            <!--Weak-->
+            <div class="stat-card">
+                <span class="stat-kicker">
+                    LEVEL 01
+                </span>
+                <strong
+                    class="stat-value"
+                    id="statWeak"
+                >
+                    0
+                </strong>
+                <span class="stat-label">
+                    Weak / ha
+                </span>
+            </div>
+
+            <!--Mod-->
+            <div class="stat-card">
+                <span class="stat-kicker">
+                    LEVEL 02
+                </span>
+                <strong
+                    class="stat-value"
+                    id="statModerate"
+                >
+                    0
+                </strong>
+                <span class="stat-label">
+                    Moderate / ha
+                </span>
+            </div>
+
+            <!--Strong-->
+            <div class="stat-card">
+                <span class="stat-kicker">
+                    LEVEL 03
+                </span>
+                <strong
+                    class="stat-value"
+                    id="statStrong"
+                >
+                    0
+                </strong>
+                <span class="stat-label">
+                    Strong / ha
+                </span>
+            </div>
+        </section>
+
+        <!--Overlay-->
+        <div
+            class="loading-overlay"
+            id="loadingOverlay"
+            aria-hidden="true"
+        >
+            <div class="loading-box">
+                <div class="loading-spinner"></div>
+                <span>
+                    LOADING SATELLITE DATA
+                </span>
+            </div>
+        </div>
+
+        <!--Err-->
+        <div
+            class="notification"
+            id="notification"
+            aria-hidden="true"
+        >
+            <div class="notification-icon">
+                !
+            </div>
+            <div class="notification-content">
+                <strong id="notificationTitle">
+                    Error
+                </strong>
+                <span id="notificationMessage">
+                    Something went wrong.
+                </span>
+            </div>
+
+            <button
+                id="closeNotification"
+                type="button"
+                aria-label="Close notification"
+            >
+                ×
+            </button>
+        </div>
+
+        <div class="datepicker-popover" id="datepickerPopover" hidden>
+
+            <div class="datepicker-header">
+                <button type="button" class="datepicker-nav" data-action="prev">‹</button>
+                <button type="button" class="datepicker-title" data-action="today">Июль 2025</button>
+                <button type="button" class="datepicker-nav" data-action="next">›</button>
+            </div>
+
+            <div class="datepicker-weekdays">
+                <span>Пн</span>
+                <span>Вт</span>
+                <span>Ср</span>
+                <span>Чт</span>
+                <span>Пт</span>
+                <span>Сб</span>
+                <span>Вс</span>
+            </div>
+
+            <div class="datepicker-grid" id="datepickerGrid"></div>
+
+        </div>
+
+        <!--Leaflet-->
+        <script
+            src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""
+        ></script>
+
+        <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+        <script src="js/config.js"></script>
+        <script src="js/mock-data.js"></script>
+        <script src="js/datepicker.js"></script> 
+        <script src="js/api.js"></script>
+        <script src="js/map.js"></script>
+        <script src="js/app.js"></script>
+    </body>
+</html>
