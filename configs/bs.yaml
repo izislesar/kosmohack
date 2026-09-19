@@ -1,0 +1,120 @@
+# BS (BurnScars) main-lane config — Prithvi-EO-2.0-300M, 4 classes
+# Numbers copied from eda/facts.md §6+§10 (generated 2026-09-18T22:52:49Z, seed 19).
+# Split chip lists live in eda/split.json (bs train 180 / val 44, grouped-by-event) — used VERBATIM, not copied here.
+seed: 19
+deterministic: true
+
+data:
+  root: /workspace/kosmohack/data        # remote; override with --data-root locally
+  split_json: eda/split.json
+  chip_size: 512
+  # Raw file bands (on disk):
+  #   sentinel2_{pre,post}: 10x uint16 L2A [B2 B3 B4 B5 B6 B7 B8A B11 B12 SCL] (SCL idx 9)
+  #   sentinel1_{pre,post}:  2x int16 dB*100 [VV VH]
+  #   aux:                  3x int16 [dem slope landcover]  (NO aspect band on disk)
+  #   masks:                1x uint8 {0,1,2,3}, nodata tag 255
+  # MODEL INPUT MANIFEST N = 27 = S2pre9 + S2post9 + S1x4 + AUX3 + IDX2:
+  #   ch 0-5 : pre  reflectance B2 B3 B4 B8A B11 B12 (uint16/10000)  <- HLS-mapped, keep pretrained patch weights
+  #   ch 6-8 : pre  reflectance B5 B6 B7
+  #   ch 9-17: post reflectance B2 B3 B4 B5 B6 B7 B8A B11 B12
+  #   ch 18-21: S1 dB (VVpre VHpre VVpost VHpost = int16/100, z-normed)
+  #   ch 22-24: AUX (dem/300.0, slope/45.0, landcover/100.0)
+  #   ch 25-26: dNBR, RdNBR (facts recipe, SCL-masked)
+  # SCL is NOT a feature channel — masking/gating only.
+  # (Task shorthand "pre10+post10+S1x4+aux4" counts raw file bands incl. SCL;
+  #  effective model channels N=27. in_channels below is authoritative.)
+  in_channels: 27
+  num_classes: 4
+
+norm:
+  s1_means_dB: [-13.4705, -21.7489, -13.4316, -22.1552]   # VVpre VHpre VVpost VHpost (facts §6)
+  s1_stds_dB:  [5.2820, 7.8894, 5.4357, 8.5948]
+  dem_scale: 300.0
+  slope_scale: 45.0
+  landcover_scale: 100.0
+  s2_reflectance_scale: 10000.0
+  dnbr_clip: [-2.0, 2.0]
+  rdnbr_clip: [-5.0, 5.0]
+
+# NBR/dNBR recipe EXACTLY per facts §10 (eps inside denominator AND sqrt term)
+nbr_recipe: "NBR=(B8A-B12)/(B8A+B12+1e-6); dNBR=NBR_pre-NBR_post; RdNBR=dNBR/(sqrt(|NBR_pre|)+1e-6)"
+nbr_eps: 0.000001
+
+# SCL/cloud gate: cloud = SCL in {7,8,9,10} + shadow 3 + snow 11; valid = SCL!=0 AND mask!=255.
+# Dry-soil != cloud: on barren landcover (60) SCL 8/9 are kept valid (SCL mistakes dry soil for cloud).
+cloud_gate:
+  cloud_codes: [3, 7, 8, 9, 10, 11]
+  nodata_code: 0
+  dry_soil_override: true
+  dry_soil_landcover: 60
+  dry_soil_relax_codes: [8, 9]
+
+# dNBR severity thresholds per landcover group (facts §6, regional-distribution method):
+# dNBR<cut12->sev1; cut12<=dNBR<cut23->sev2; dNBR>=cut23->sev3
+dnbr_thresholds:
+  forest:    {cut12: 0.2787, cut23: 0.5308}
+  steppe:    {cut12: 0.2063, cut23: 0.3831}
+  cropland:  {cut12: 0.1909, cut23: 0.3745}
+  floodplain: {cut12: 0.3082, cut23: 0.6051}
+  other:     {cut12: 0.2373, cut23: 0.4053}
+# Burn/no-burn gate per group (heuristic between global-unburned p75=0.0844 and sev1 p25; beats-nothing baseline):
+burn_thresholds:
+  forest: 0.10
+  steppe: 0.06
+  cropland: 0.06
+  floodplain: 0.10
+  other: 0.08
+# WorldCover v200 code -> group (verified against per-(code x sev) px counts in facts §6)
+landcover_groups:
+  forest: [10]
+  steppe: [30]
+  cropland: [40]
+  floodplain: [90]
+  # other = everything else (20 shrub, 50 built, 60 barren, 80 water, ...)
+
+model:
+  lane: prithvi
+  backbone: prithvi_eo_v2_300
+  backbone_pretrained: true
+  backbone_img_size: 512
+  backbone_num_frames: 1
+  # First 6 = HLS names reusing pretrained patch-embed; remaining 21 custom (random-init then inflated, see bs_prithvi.py)
+  backbone_bands: [BLUE, GREEN, RED, NIR_NARROW, SWIR_1, SWIR_2,
+    BS_PRE_B5, BS_PRE_B6, BS_PRE_B7,
+    BS_POST_B2, BS_POST_B3, BS_POST_B4, BS_POST_B5, BS_POST_B6, BS_POST_B7, BS_POST_B8A, BS_POST_B11, BS_POST_B12,
+    BS_S1_VVPRE, BS_S1_VHPRE, BS_S1_VVPOST, BS_S1_VHPOST,
+    BS_AUX_DEM, BS_AUX_SLOPE, BS_AUX_LC, BS_DNBR, BS_RDNBR]
+  necks: [{name: SelectIndices, indices: [5, 11, 17, 23]}, {name: ReshapeTokensToImage}, {name: LearnedInterpolateToPyramidal}]
+  decoder: UNetDecoder
+  decoder_channels: [512, 256, 128, 64]
+  head_dropout: 0.1
+  freeze_backbone: true     # round 2: frozen encoder (nan-loss fix), train decoder+head
+  grad_checkpoint: true     # best-effort; logged whether actually engaged
+
+train:
+  lane: prithvi
+  batch_size: 1             # 300M model on 32GB: batch 1-2 start
+  grad_accum: 8             # effective batch 8
+  grad_clip: 1.0            # round 2: AMP/nan-loss fix
+  max_epochs: 15            # round 2: extended (epochs are ~20s; timebox allows)
+  amp: true
+  amp_dtype: bfloat16        # round 3: fp16 overflowed ViT attention (->nan); Blackwell has native bf16
+  lr: 0.0003               # round 4: backbone frozen -> decoder trains at fallback-class LR
+  weight_decay: 0.01
+  optimizer: AdamW
+  class_weights: [1.0, 4.73, 4.91, 6.24]   # inverse-sqrt freq (bg 89.94 / s1 4.02 / s2 3.73 / s3 2.31)
+  ignore_index: 255
+  num_workers: 2
+  val_every: 1
+  monitor: iou_burn_plus_miou_sev     # best ckpt by (IoU_burn + mIoU_sev)
+  out_ckpt: weights/bs.pt
+  log_dir: logs/bs
+  viz_chips: 3
+  smoke_overfit_iters: 50   # failing-first: single-batch overfit before full run
+
+metric:
+  # case.md §7: micro-pool over all val chips; zero-denom -> 1.0; burn = classes {1,2,3} pooled
+  iou_burn_pool: [1, 2, 3]
+  miou_sev_classes: [1, 2, 3]
+  zero_denom_rule: 1.0
+  score_weights: {iou_burn: 0.35, miou_sev: 0.30}

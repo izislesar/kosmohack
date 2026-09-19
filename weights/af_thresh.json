@@ -1,0 +1,33 @@
+{
+  "ckpt": "af.pt",
+  "seed": 19,
+  "val_chips": 85,
+  "day_chips": 52,
+  "night_chips": 33,
+  "day_rule": "chip-median solar_zenith>90 -> night",
+  "thr_day": 0.15,
+  "thr_night": 0.15,
+  "thr_global_best": {
+    "thr": 0.15,
+    "F1_micro": 0.8427
+  },
+  "wc_gate": {
+    "name": "b50_i4_310",
+    "desc": "lc==50 requires I4>=310K",
+    "lc_code": 50,
+    "dI45_min_K": null,
+    "I4_min_K": 310.0,
+    "hard_drop": false
+  },
+  "F1_day": 0.8519,
+  "F1_night": 0.803,
+  "F1_all_micro": 0.8434,
+  "counts": {
+    "TP": 1654,
+    "FP": 272,
+    "FN": 342
+  },
+  "metric": "micro-F1 pooled over val chips (case \u00a77 zero-denom); thresholds+gate selected by argmax micro-F1",
+  "rle_rule": "thresholds apply PER-PIXEL on prob map; MERGE touching positive runs at RLE-encoding time (case \u00a76 series must not touch)",
+  "_comment": "frozen ckpt af.pt (val micro-F1=0.8425@thr=0.15); this json only adds decision thresholds + WC gate, no weight change"
+}

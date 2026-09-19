@@ -1,0 +1,83 @@
+# BS fallback-lane config — smp.Unet timm-efficientnet-b4, in=N=27, classes=4
+# Same data/manifest/gates/thresholds as configs/bs.yaml (numbers from eda/facts.md §6+§10).
+# Started IMMEDIATELY (same task, sequential on 1 GPU — fallback FIRST so a deliverable always exists).
+seed: 19
+deterministic: true
+
+data:
+  root: /workspace/kosmohack/data
+  split_json: eda/split.json
+  chip_size: 512
+  in_channels: 27
+  num_classes: 4
+
+norm:
+  s1_means_dB: [-13.4705, -21.7489, -13.4316, -22.1552]
+  s1_stds_dB:  [5.2820, 7.8894, 5.4357, 8.5948]
+  dem_scale: 300.0
+  slope_scale: 45.0
+  landcover_scale: 100.0
+  s2_reflectance_scale: 10000.0
+  dnbr_clip: [-2.0, 2.0]
+  rdnbr_clip: [-5.0, 5.0]
+
+nbr_recipe: "NBR=(B8A-B12)/(B8A+B12+1e-6); dNBR=NBR_pre-NBR_post; RdNBR=dNBR/(sqrt(|NBR_pre|)+1e-6)"
+nbr_eps: 0.000001
+
+cloud_gate:
+  cloud_codes: [3, 7, 8, 9, 10, 11]
+  nodata_code: 0
+  dry_soil_override: true
+  dry_soil_landcover: 60
+  dry_soil_relax_codes: [8, 9]
+
+dnbr_thresholds:
+  forest:    {cut12: 0.2787, cut23: 0.5308}
+  steppe:    {cut12: 0.2063, cut23: 0.3831}
+  cropland:  {cut12: 0.1909, cut23: 0.3745}
+  floodplain: {cut12: 0.3082, cut23: 0.6051}
+  other:     {cut12: 0.2373, cut23: 0.4053}
+burn_thresholds:
+  forest: 0.10
+  steppe: 0.06
+  cropland: 0.06
+  floodplain: 0.10
+  other: 0.08
+landcover_groups:
+  forest: [10]
+  steppe: [30]
+  cropland: [40]
+  floodplain: [90]
+
+model:
+  lane: fallback
+  arch: Unet
+  encoder_name: timm-efficientnet-b4
+  encoder_weights: imagenet     # falls back to None (random init) if download fails; logged
+  activation: null
+
+train:
+  lane: fallback
+  batch_size: 2
+  grad_accum: 4               # effective batch 8
+  grad_clip: 1.0              # round 2: stability
+  max_epochs: 40              # round 2: extended (epochs ~15s; undertrained at 8ep)
+  amp: true
+  lr: 0.0003
+  weight_decay: 0.0001
+  optimizer: AdamW
+  class_weights: [1.0, 4.73, 4.91, 6.24]
+  ignore_index: 255
+  num_workers: 2
+  val_every: 1
+  monitor: iou_burn_plus_miou_sev
+  out_ckpt: weights/bs-fallback.pt
+  log_dir: logs/bs-fallback
+  viz_chips: 3
+  smoke_overfit_iters: 50
+
+metric:
+  iou_burn_pool: [1, 2, 3]
+  miou_sev_classes: [1, 2, 3]
+  zero_denom_rule: 1.0
+  score_weights: {iou_burn: 0.35, miou_sev: 0.30}

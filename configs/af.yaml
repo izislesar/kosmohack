@@ -1,0 +1,75 @@
+# AF (Active Fire) training config — Unet-effb4, 5+aux -> 1 class.
+# Consumed by: python src/models/train.py --config configs/af.yaml
+# Stats source: eda/facts.md section 10 machine-readable YAML (seed 19 run).
+
+seed: 19
+deterministic: true
+
+data_root: /workspace/kosmohack/data   # override with --data-root locally
+split_path: eda/split.json             # AF lists used VERBATIM (fire_event_id EMPTY -> chip split)
+split_group: af                        # key inside split.json
+
+model:
+  arch: unet
+  encoder: timm-efficientnet-b4
+  encoder_weights: imagenet
+  in_channels: 12   # 5 main [I1,I2,I3,I4n,dI45n] + 7 aux [lc,dem,t2m,rh,wind,daynight,valid]
+  classes: 1
+  finetune: full    # all params trainable
+
+# Per-channel normalization (from eda/facts.md; I1-I3 reflectance as-is).
+norm:
+  I4_clip_K: [0.0, 367.0]
+  I4_mean: 295.024043
+  I4_std: 14.621845
+  dI45_mean: 8.550973     # I4-I5 feature channel
+  dI45_std: 9.960024
+  landcover_scale: 100.0  # WorldCover code / 100 (one-hot-ish scaled scalar)
+  dem_clip: [-50.0, 1500.0]  # AF DEM min -179 looks like void fill -> clip robustly
+  dem_center: 100.0
+  dem_scale: 400.0
+  t2m_center: 292.0
+  t2m_scale: 10.0
+  rh_center: 55.0
+  rh_scale: 25.0
+  wind_scale: 5.0       # wind_speed >= 0 -> x / 5
+  night_rule: solar_zenith>90  # I1-I3 NaN at night -> NaN-to-0 + daynight flag channel
+
+loss:
+  kind: dice+focal     # alt: dice+bce (switch via config, no code change)
+  dice_weight: 1.0
+  focal_weight: 1.0
+  focal_alpha: 0.8     # pos-heavy: fire px are 0.035% of train
+  focal_gamma: 2.0
+  dice_smooth: 1.0
+  bce_pos_weight: 50.0 # used only when kind == dice+bce
+
+train:
+  epochs: 40
+  batch_size: 16
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  optimizer: adamw
+  scheduler: cosine
+  amp: true
+  num_workers: 4
+  oversample_pos: 3        # fire chips repeated 3x in train index (extreme 0.035% imbalance)
+  early_stopping_patience: 12
+  timebox_note: ~3h budget; stop early on val-F1 stall, report best
+
+val:
+  thresholds: [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9]
+  checkpoint_metric: val_f1_af   # best ckpt by val micro-F1 at best threshold
+  baseline_i4_thr_K: 320.0      # trivial I4>320K baseline, must be beaten or explained
+
+outputs:
+  checkpoint: weights/af.pt
+  csv_log: logs/af_train.csv
+  run_log: logs/af.log
+  viz_dir: weights/af_viz
+  viz_chips: 3                 # val chips with fire -> png + pred/gt npy
+
+notes:
+  flare_limitation: Single-snapshot gas flares are pixel-indistinguishable from
+    wildfire (case Fig.4); landcover+meteo/daynight context only mitigates.
+    Documented honestly, not claimed solved.

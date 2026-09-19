@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Data / weights (big files stay local)
+*.tar
+*.tar.gz
+*.zip
+*.tif
+*.tiff
+*.geotiff
+*.nc
+*.h5
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
+# Logs & local env
+logs/
+env/env-check.log
+*.log
+
+# Agent / tool state (local only)
+.omo/
+.claude-flow/
+.opencode/
+frontend/node_modules/
+frontend/dist/

@@ -1,0 +1,5 @@
+# sha256 of source archives (computed locally 2026-09-18; remote sha256sum MATCHES both)
+9cc2d532312dd91d24beb8c6abcfdddac0cff6ca095501be28d81f751a8f159a  fire-train-renamed.tar  # 2305976320 bytes
+0431f8ae3af3a266a99074f87ca4a4caf5b6ea2e3645048a905ccac10c51674f  fire-test-renamed.tar   # 920483840 bytes
+# spot: remote fire-aoi/fire_monitoring_aoi.geojson
+b5eeac1942c5bf23a92d3155db95fb6df23f1ad8d1b8114087312186279c87ba  fire-aoi/fire_monitoring_aoi.geojson
